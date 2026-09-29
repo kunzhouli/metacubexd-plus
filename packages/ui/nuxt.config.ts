@@ -215,7 +215,9 @@ export default defineNuxtConfig({
         {
           // Use relative path for config.js to support both root and subdirectory deployments
           // tagPosition: 'head' and blocking load ensure config is available before app runs
-          src: 'config.js',
+          // The query also bypasses browsers that cached an earlier static
+          // config.js before the server's dynamic route was enabled.
+          src: 'config.js?runtime=1',
           tagPosition: 'head',
           defer: false,
           async: false,
