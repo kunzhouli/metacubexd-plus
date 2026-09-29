@@ -19,6 +19,7 @@ import type {
 import ky from 'ky'
 import type {
   ManagedNode,
+  ManualNodeGroup,
   NodePreviewItem,
   NodeSystemStatus,
 } from '~/types/nodes'
@@ -83,6 +84,15 @@ export function useControlApi() {
     token,
     getInfo: () => client.get('info').json<ControlInfo>(),
     listNodes: () => client.get('nodes').json<ManagedNode[]>(),
+    listNodeGroups: () => client.get('nodes/groups').json<ManualNodeGroup[]>(),
+    selectNode: (id: string, group: string) =>
+      client
+        .post('nodes/select', { json: { id, group } })
+        .json<{ group: string; name: string }>(),
+    deleteNodes: (ids: string[]) =>
+      client
+        .post('nodes/delete', { json: { ids } })
+        .json<{ deleted: number }>(),
     previewNodes: (text: string) =>
       client
         .post('nodes/preview', { json: { text } })

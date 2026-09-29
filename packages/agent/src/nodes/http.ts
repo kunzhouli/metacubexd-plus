@@ -20,7 +20,7 @@ export interface ExternalNodeAgentOptions {
 }
 
 function statusFor(code: string): number {
-  if (code === 'NODE_NOT_FOUND') return 404
+  if (code === 'NODE_NOT_FOUND' || code === 'GROUP_NOT_FOUND') return 404
   if (code === 'NODE_CONFLICT' || code === 'DUPLICATE_NODE') return 409
   if (code === 'MIHOMO_UNAVAILABLE' || code.startsWith('MIHOMO_HTTP_'))
     return 503
@@ -102,6 +102,27 @@ export function createExternalNodeAgent(opts: ExternalNodeAgentOptions) {
       const body = await readBody<{ uris?: unknown; tags?: unknown }>(event)
       if (!Array.isArray(body?.uris)) throw new Error('INVALID_IMPORT')
       return nodes.importUris(body.uris, body.tags ?? [])
+    }),
+  )
+  router.get(
+    '/api/control/nodes/groups',
+    safe(() => nodes.groups()),
+  )
+  router.post(
+    '/api/control/nodes/select',
+    safe(async (event) => {
+      const body = await readBody<{ id?: unknown; group?: unknown }>(event)
+      if (typeof body?.id !== 'string' || typeof body.group !== 'string')
+        throw new Error('INVALID_NODE_SELECTION')
+      return nodes.select(body.id, body.group)
+    }),
+  )
+  router.post(
+    '/api/control/nodes/delete',
+    safe(async (event) => {
+      const body = await readBody<{ ids?: unknown }>(event)
+      if (!Array.isArray(body?.ids)) throw new Error('INVALID_NODE_SELECTION')
+      return { deleted: await nodes.removeMany(body.ids) }
     }),
   )
   router.get(

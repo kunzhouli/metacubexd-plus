@@ -34,12 +34,20 @@ export interface ProviderData {
   proxies: ProviderProxy[]
 }
 
+export interface SelectableGroup {
+  name: string
+  now: string
+  members: string[]
+}
+
 export interface MihomoClient {
   provider: () => Promise<ProviderData>
   allProviders: () => Promise<Record<string, ProviderData>>
   reload: () => Promise<void>
   healthcheck: () => Promise<void>
   test: (name: string, url: string, timeout: number) => Promise<number>
+  groups: () => Promise<SelectableGroup[]>
+  select: (group: string, name: string) => Promise<void>
   version: () => Promise<boolean>
 }
 
@@ -52,12 +60,20 @@ const EMPTY_PROVIDER_NAME = 'Manual empty (DIRECT)'
 
 export function createMihomoClient(base: string, secret: string): MihomoClient {
   const root = base.replace(/\/$/, '')
-  async function request(path: string, method = 'GET'): Promise<Response> {
+  async function request(
+    path: string,
+    method = 'GET',
+    body?: Record<string, string>,
+  ): Promise<Response> {
     let response: Response
     try {
       response = await fetch(`${root}${path}`, {
         method,
-        headers: secret ? { Authorization: `Bearer ${secret}` } : {},
+        headers: {
+          ...(secret ? { Authorization: `Bearer ${secret}` } : {}),
+          ...(body ? { 'Content-Type': 'application/json' } : {}),
+        },
+        body: body ? JSON.stringify(body) : undefined,
         signal: AbortSignal.timeout(25_000),
       })
     } catch {
@@ -91,6 +107,26 @@ export function createMihomoClient(base: string, secret: string): MihomoClient {
         )
       ).json()) as { delay: number }
       return body.delay
+    },
+    groups: async () => {
+      const body = (await (await request('/proxies')).json()) as {
+        proxies?: Record<
+          string,
+          { name?: string; type?: string; now?: string; all?: string[] }
+        >
+      }
+      return Object.entries(body.proxies ?? {})
+        .filter(
+          ([, proxy]) => proxy.type === 'Selector' && Array.isArray(proxy.all),
+        )
+        .map(([name, proxy]) => ({
+          name,
+          now: proxy.now ?? '',
+          members: proxy.all ?? [],
+        }))
+    },
+    select: async (group, name) => {
+      await request(`/proxies/${encodeURIComponent(group)}`, 'PUT', { name })
     },
     version: async () => {
       try {
@@ -417,6 +453,26 @@ export function createNodeStore(
       await commit(current.filter((node) => node.id !== id))
     })
   }
+  async function removeMany(ids: string[]): Promise<number> {
+    return locked(async () => {
+      if (
+        !Array.isArray(ids) ||
+        ids.length === 0 ||
+        ids.length > 200 ||
+        ids.some((id) => typeof id !== 'string')
+      )
+        throw new Error('INVALID_NODE_SELECTION')
+      const selected = new Set(ids)
+      const current = await readNodes()
+      if (
+        selected.size !== ids.length ||
+        current.filter((node) => selected.has(node.id)).length !== selected.size
+      )
+        throw new Error('NODE_NOT_FOUND')
+      await commit(current.filter((node) => !selected.has(node.id)))
+      return selected.size
+    })
+  }
   return {
     preview: async (text: string) => {
       const uris = text
@@ -474,6 +530,32 @@ export function createNodeStore(
     importUris,
     update,
     remove,
+    removeMany,
+    groups: async (): Promise<SelectableGroup[]> => {
+      const [current, groups] = await Promise.all([
+        readNodes(),
+        mihomo.groups(),
+      ])
+      const names = new Set(current.map((node) => node.name))
+      return groups
+        .map((group) => ({
+          name: group.name,
+          now: group.now,
+          members: group.members.filter((name) => names.has(name)),
+        }))
+        .filter((group) => group.members.length > 0)
+    },
+    select: async (id: string, groupName: string) => {
+      const current = await readNodes()
+      const node = current.find((item) => item.id === id)
+      if (!node) throw new Error('NODE_NOT_FOUND')
+      const group = (await mihomo.groups()).find(
+        (item) => item.name === groupName && item.members.includes(node.name),
+      )
+      if (!group) throw new Error('GROUP_NOT_FOUND')
+      await mihomo.select(groupName, node.name)
+      return { group: groupName, name: node.name }
+    },
     reload: async () => {
       await mihomo.reload()
       return mihomo.provider()

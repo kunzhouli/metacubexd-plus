@@ -28,3 +28,9 @@ export interface NodeSystemStatus {
   storageReady: boolean
   providerPath: string
 }
+
+export interface ManualNodeGroup {
+  name: string
+  now: string
+  members: string[]
+}

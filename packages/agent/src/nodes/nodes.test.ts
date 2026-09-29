@@ -80,11 +80,20 @@ describe('manual provider transactions', () => {
       }),
       healthcheck: vi.fn(async () => {}),
       test: vi.fn(async () => 42),
+      groups: vi.fn(async () => [
+        {
+          name: 'PROXY',
+          now: 'DIRECT',
+          members: ['DIRECT', ...live.proxies.map((proxy) => proxy.name)],
+        },
+      ]),
+      select: vi.fn(async () => {}),
       version: vi.fn(async () => true),
     }
     return {
       path,
       store: createNodeStore(path, mihomo, sharedGroupRead),
+      mihomo,
       failNextReload: () => {
         failReload = true
       },
@@ -145,5 +154,44 @@ describe('manual provider transactions', () => {
     await store.remove(node!.id)
     expect(await readFile(path, 'utf8')).toBe(EMPTY_PROVIDER_CONTENT)
     expect(await store.list()).toEqual([])
+  })
+
+  it('deletes a selected batch with one provider reload', async () => {
+    const { store, mihomo } = await fixture()
+    const imported = await store.importUris(
+      [
+        'trojan://first@one.example:443#One',
+        'trojan://second@two.example:443#Two',
+        'trojan://third@three.example:443#Three',
+      ],
+      [],
+    )
+    const before = vi.mocked(mihomo.reload).mock.calls.length
+    expect(
+      await store.removeMany(
+        imported.imported.slice(0, 2).map((node) => node.id),
+      ),
+    ).toBe(2)
+    expect(vi.mocked(mihomo.reload).mock.calls.length).toBe(before + 1)
+    expect((await store.list()).map((node) => node.name)).toEqual(['Three'])
+  })
+
+  it('only selects managed nodes in a matching Mihomo selector', async () => {
+    const { store, mihomo } = await fixture()
+    const { imported } = await store.importUris(
+      ['trojan://first@one.example:443#One'],
+      [],
+    )
+    expect(await store.groups()).toEqual([
+      { name: 'PROXY', now: 'DIRECT', members: ['One'] },
+    ])
+    expect(await store.select(imported[0]!.id, 'PROXY')).toEqual({
+      group: 'PROXY',
+      name: 'One',
+    })
+    expect(mihomo.select).toHaveBeenCalledWith('PROXY', 'One')
+    await expect(store.select(imported[0]!.id, 'other')).rejects.toThrow(
+      'GROUP_NOT_FOUND',
+    )
   })
 })
