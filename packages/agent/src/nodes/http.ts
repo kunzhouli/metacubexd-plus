@@ -10,6 +10,8 @@ import {
   setHeader,
 } from 'h3'
 import { createMihomoClient, createNodeStore } from './store'
+import { createSubscriptionStore } from './subscriptions'
+import { dirname } from 'node:path'
 
 export interface ExternalNodeAgentOptions {
   providerPath: string
@@ -20,8 +22,18 @@ export interface ExternalNodeAgentOptions {
 }
 
 function statusFor(code: string): number {
-  if (code === 'NODE_NOT_FOUND' || code === 'GROUP_NOT_FOUND') return 404
-  if (code === 'NODE_CONFLICT' || code === 'DUPLICATE_NODE') return 409
+  if (
+    code === 'NODE_NOT_FOUND' ||
+    code === 'GROUP_NOT_FOUND' ||
+    code === 'SUBSCRIPTION_NOT_FOUND'
+  )
+    return 404
+  if (
+    code === 'NODE_CONFLICT' ||
+    code === 'DUPLICATE_NODE' ||
+    code === 'DUPLICATE_SUBSCRIPTION'
+  )
+    return 409
   if (code === 'MIHOMO_UNAVAILABLE' || code.startsWith('MIHOMO_HTTP_'))
     return 503
   if (
@@ -56,12 +68,21 @@ export function createExternalNodeAgent(opts: ExternalNodeAgentOptions) {
     mihomo,
     opts.sharedGroupRead ?? false,
   )
+  const subscriptions = createSubscriptionStore(
+    dirname(opts.providerPath),
+    mihomo,
+    opts.sharedGroupRead ?? false,
+  )
+  const scheduler = setInterval(() => {
+    void subscriptions.refreshDue().catch(() => undefined)
+  }, 60_000)
+  scheduler.unref()
   const info = () => ({
     hasAgent: true as const,
     version: '0.0.0',
     platform: { os: process.platform, arch: process.arch },
     kernel: { bundled: false, path: '' },
-    features: ['nodes'],
+    features: ['nodes', 'subscriptions'],
   })
 
   app.use(
@@ -87,6 +108,67 @@ export function createExternalNodeAgent(opts: ExternalNodeAgentOptions) {
   router.get(
     '/api/control/nodes',
     safe(() => nodes.list()),
+  )
+  router.get(
+    '/api/control/subscriptions',
+    safe(() => subscriptions.list()),
+  )
+  router.post(
+    '/api/control/subscriptions/preview',
+    safe(async (event) => {
+      const body = await readBody<{ url?: unknown }>(event)
+      return subscriptions.preview(body?.url as string)
+    }),
+  )
+  router.post(
+    '/api/control/subscriptions',
+    safe(async (event) => {
+      const body = await readBody<{
+        name?: unknown
+        url?: unknown
+        intervalHours?: unknown
+      }>(event)
+      return subscriptions.add(body ?? {})
+    }),
+  )
+  router.get(
+    '/api/control/subscriptions/:id/url',
+    safe(async (event) => ({
+      url: await subscriptions.reveal(getRouterParam(event, 'id') ?? ''),
+    })),
+  )
+  router.put(
+    '/api/control/subscriptions/:id',
+    safe(async (event) => {
+      const body = await readBody<{
+        name?: unknown
+        url?: unknown
+        intervalHours?: unknown
+      }>(event)
+      return subscriptions.update(getRouterParam(event, 'id') ?? '', body ?? {})
+    }),
+  )
+  router.delete(
+    '/api/control/subscriptions/:id',
+    safe(async (event) => {
+      await subscriptions.remove(getRouterParam(event, 'id') ?? '')
+      return { ok: true }
+    }),
+  )
+  router.post(
+    '/api/control/subscriptions/:id/refresh',
+    safe((event) => subscriptions.refresh(getRouterParam(event, 'id') ?? '')),
+  )
+  router.post(
+    '/api/control/subscriptions/healthcheck',
+    safe(async () => {
+      await subscriptions.healthcheck()
+      return { ok: true }
+    }),
+  )
+  router.get(
+    '/api/control/subscriptions/status',
+    safe(() => subscriptions.status()),
   )
   router.post(
     '/api/control/nodes/preview',

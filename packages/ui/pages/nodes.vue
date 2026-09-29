@@ -350,6 +350,15 @@ function reload() {
       </div>
     </header>
 
+    <div class="tabs-boxed tabs w-fit" role="tablist">
+      <NuxtLink to="/nodes" class="tab tab-active">{{
+        t('manualNodesList')
+      }}</NuxtLink>
+      <NuxtLink to="/nodes/subscriptions" class="tab">{{
+        t('subscriptionsTitle')
+      }}</NuxtLink>
+    </div>
+
     <div v-if="ready && !hasFeature('nodes')" class="alert alert-warning">
       {{ t('manualNodesUnavailable') }}
     </div>

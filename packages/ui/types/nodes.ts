@@ -34,3 +34,22 @@ export interface ManualNodeGroup {
   now: string
   members: string[]
 }
+
+export interface NodeSubscription {
+  id: string
+  name: string
+  host: string
+  format: 'uri' | 'yaml'
+  intervalHours: number
+  count: number
+  createdAt: number
+  updatedAt: number
+  lastUpdatedAt: number
+  lastError: string | null
+}
+
+export interface SubscriptionPreview {
+  format: 'uri' | 'yaml'
+  count: number
+  items: Array<{ name: string; protocol: string; server: string; port: number }>
+}

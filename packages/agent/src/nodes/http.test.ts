@@ -32,12 +32,12 @@ describe('external node Control API', () => {
     await rm(dir, { recursive: true, force: true })
   })
 
-  it('advertises only node capability in external mode', async () => {
+  it('advertises node and subscription capabilities in external mode', async () => {
     const response = await fetch(`${base}/api/control/info`)
     expect(response.status).toBe(200)
     expect(
       ((await response.json()) as { features: string[] }).features,
-    ).toEqual(['nodes'])
+    ).toEqual(['nodes', 'subscriptions'])
   })
 
   it('requires a bearer token and never puts submitted credentials in errors', async () => {

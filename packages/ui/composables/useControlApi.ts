@@ -22,6 +22,8 @@ import type {
   ManualNodeGroup,
   NodePreviewItem,
   NodeSystemStatus,
+  NodeSubscription,
+  SubscriptionPreview,
 } from '~/types/nodes'
 
 // Profile validation can trigger Mihomo's first-run GEO database download.
@@ -125,6 +127,49 @@ export function useControlApi() {
       client.post('providers/manual/healthcheck').json<{ ok: boolean }>(),
     getNodeSystemStatus: () =>
       client.get('system/status').json<NodeSystemStatus>(),
+    listSubscriptions: () =>
+      client.get('subscriptions').json<NodeSubscription[]>(),
+    previewSubscription: (url: string) =>
+      client
+        .post('subscriptions/preview', { json: { url }, timeout: 30_000 })
+        .json<SubscriptionPreview>(),
+    addSubscription: (body: {
+      name: string
+      url: string
+      intervalHours: number
+    }) =>
+      client
+        .post('subscriptions', { json: body, timeout: 45_000 })
+        .json<NodeSubscription>(),
+    updateSubscription: (
+      id: string,
+      body: { name: string; url?: string; intervalHours: number },
+    ) =>
+      client
+        .put(`subscriptions/${encodeURIComponent(id)}`, {
+          json: body,
+          timeout: 45_000,
+        })
+        .json<NodeSubscription>(),
+    deleteSubscription: async (id: string) => {
+      await client.delete(`subscriptions/${encodeURIComponent(id)}`)
+    },
+    refreshSubscription: (id: string) =>
+      client
+        .post(`subscriptions/${encodeURIComponent(id)}/refresh`, {
+          timeout: 45_000,
+        })
+        .json<NodeSubscription>(),
+    getSubscriptionUrl: (id: string) =>
+      client
+        .get(`subscriptions/${encodeURIComponent(id)}/url`)
+        .json<{ url: string }>(),
+    healthcheckSubscriptions: () =>
+      client.post('subscriptions/healthcheck').json<{ ok: boolean }>(),
+    getSubscriptionStatus: () =>
+      client
+        .get('subscriptions/status')
+        .json<{ providerReady: boolean; count: number }>(),
     getKernelStatus: () => client.get('kernel/status').json<KernelState>(),
     startKernel: () => client.post('kernel/start').json<KernelState>(),
     stopKernel: () => client.post('kernel/stop').json<KernelState>(),

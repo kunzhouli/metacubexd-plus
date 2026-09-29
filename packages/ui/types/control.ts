@@ -52,6 +52,7 @@ export interface ProfileMeta {
 // GET /api/control/info
 export type ControlFeature =
   | 'nodes'
+  | 'subscriptions'
   | 'profiles'
   | 'logs-sse'
   | 'kernel-control'

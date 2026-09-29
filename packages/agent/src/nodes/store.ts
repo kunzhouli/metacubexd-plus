@@ -49,6 +49,9 @@ export interface MihomoClient {
   groups: () => Promise<SelectableGroup[]>
   select: (group: string, name: string) => Promise<void>
   version: () => Promise<boolean>
+  namedProvider: (name: string) => Promise<ProviderData>
+  reloadNamed: (name: string) => Promise<void>
+  healthcheckNamed: (name: string) => Promise<void>
 }
 
 // Mihomo rejects PUT refreshes of empty content and `proxies: []`. A harmless
@@ -136,10 +139,22 @@ export function createMihomoClient(base: string, secret: string): MihomoClient {
         return false
       }
     },
+    namedProvider: async (name) =>
+      (await (
+        await request(`/providers/proxies/${encodeURIComponent(name)}`)
+      ).json()) as ProviderData,
+    reloadNamed: async (name) => {
+      await request(`/providers/proxies/${encodeURIComponent(name)}`, 'PUT')
+    },
+    healthcheckNamed: async (name) => {
+      await request(
+        `/providers/proxies/${encodeURIComponent(name)}/healthcheck`,
+      )
+    },
   }
 }
 
-async function atomicWrite(
+export async function atomicWrite(
   path: string,
   data: string | Buffer,
   mode = 0o600,

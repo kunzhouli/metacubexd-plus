@@ -64,3 +64,29 @@ Place secrets in a root-owned systemd environment file with mode `0600`, referen
 The node page appears only when `MIHOMO_MODE=external`. The node-management API stays on the Dashboard origin at `/api/control`; Mihomo's own API uses port 9090. `GET /api/control/system/status` reports whether Mihomo and the `manual` Provider are ready. Ordinary node edits write `manual.txt` and call Mihomo's Provider reload API; they do not restart the systemd service.
 
 The node list can filter by name, protocol, tag, and availability. Its **Use** action selects a managed node in a Mihomo Selector group that already includes the `manual` Provider; it does not edit the main config. Deleting selected nodes uses one Provider transaction and one reload.
+
+## Subscription links
+
+Add two file Providers to the main Mihomo config once. The subscription manager writes URI lists to one file and Clash/Mihomo YAML proxies to the other, because Mihomo cannot mix those formats in one Provider file. Both files need the same `metacubexd:root` ownership and `0660` mode as `manual.txt`; the private `subscriptions.meta.json` stores source URLs and cached nodes with mode `0600`.
+
+```yaml
+proxy-providers:
+  subscriptions-uri:
+    type: file
+    path: ./proxy_providers/subscriptions-uri.txt
+    health-check:
+      enable: true
+      url: https://www.gstatic.com/generate_204
+      interval: 600
+  subscriptions-yaml:
+    type: file
+    path: ./proxy_providers/subscriptions-yaml.yaml
+    health-check:
+      enable: true
+      url: https://www.gstatic.com/generate_204
+      interval: 600
+```
+
+Include both names in the intended Selector group's `use` list, alongside `manual`. Initialize the files with `proxies:` YAML containing one `direct` placeholder each (named `Subscriptions URI empty (DIRECT)` and `Subscriptions YAML empty (DIRECT)`). Mihomo rejects a refresh of an empty Provider; after the first successful subscription update, its placeholder is replaced by real nodes.
+
+The **Subscriptions** tab at `/nodes/subscriptions` previews, adds, edits, deletes, and refreshes sources. It accepts YAML with a `proxies` list, URI lines, and Base64 encoded URI lines. A zero hour interval disables automatic updates; other sources are checked every minute and fetched when due. Updates write both Provider files atomically, keep backups, reload them with Mihomo's API, verify loaded names, and restore the previous files if reload fails. A failed source download leaves the running nodes intact. Subscription URLs never appear in list responses, browser storage, or error messages; the edit dialog requests a URL only when opened. Access to this page and its Control API should remain limited to a trusted LAN.
