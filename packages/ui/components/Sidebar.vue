@@ -30,7 +30,7 @@ import { orderProxyModes } from '~/utils'
 const route = useRoute()
 const { t } = useI18n()
 const configStore = useConfigStore()
-const { hasAgent, hasFeature } = useControlInfo()
+const { hasFeature } = useControlInfo()
 const configActions = useConfigActions()
 
 const navItems = computed(() => {
@@ -46,10 +46,17 @@ const navItems = computed(() => {
   if (hasFeature('profiles')) {
     items.push({ href: '/profiles', name: t('profiles'), icon: IconFileCode })
   }
+  if (hasFeature('nodes')) {
+    items.push({ href: '/nodes', name: t('manualNodes'), icon: IconGlobe })
+  }
   // Desktop/server only: one entry point for everything the bundled agent
   // manages (kernel lifecycle, version/geo, system proxy, network sections,
   // runtime config, WebDAV backup). Hidden in the plain web dashboard.
-  if (hasAgent.value) {
+  if (
+    hasFeature('kernel-control') ||
+    hasFeature('system-proxy') ||
+    hasFeature('config-sections')
+  ) {
     items.push({
       href: '/control',
       name: t('controlCenter'),

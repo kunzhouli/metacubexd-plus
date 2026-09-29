@@ -1,8 +1,12 @@
 import { join } from 'node:path'
-import { createAgent } from '@metacubexd/agent'
+import { createAgent, createExternalNodeAgent } from '@metacubexd/agent'
 
 /** Parsed server runtime config, sourced entirely from env. */
 export interface ServerEnv {
+  mihomoMode: 'bundled' | 'external'
+  mihomoHome: string
+  mihomoApiUrl: string
+  manualProviderSharedGroup: boolean
   controlPort: number
   clashApiPort: number
   mixedPort: number
@@ -22,6 +26,10 @@ function int(value: string | undefined, fallback: number): number {
 /** Read process.env into a typed ServerEnv with documented defaults. */
 export function serverEnv(): ServerEnv {
   return {
+    mihomoMode: process.env.MIHOMO_MODE === 'external' ? 'external' : 'bundled',
+    mihomoHome: process.env.MIHOMO_HOME ?? '/etc/mihomo',
+    mihomoApiUrl: process.env.MIHOMO_API_URL ?? 'http://127.0.0.1:9090',
+    manualProviderSharedGroup: process.env.MANUAL_PROVIDER_SHARED_GROUP === '1',
     controlPort: int(process.env.CONTROL_PORT, 8080),
     clashApiPort: int(process.env.CLASH_API_PORT, 9090),
     mixedPort: int(process.env.MIXED_PORT, 7890),
@@ -34,7 +42,8 @@ export function serverEnv(): ServerEnv {
   }
 }
 
-export type Agent = ReturnType<typeof createAgent>
+export type Agent =
+  ReturnType<typeof createAgent> | ReturnType<typeof createExternalNodeAgent>
 
 let agentSingleton: Agent | undefined
 
@@ -46,6 +55,22 @@ let agentSingleton: Agent | undefined
  */
 export function getAgent(): Agent {
   if (agentSingleton) return agentSingleton
+  const env = serverEnv()
+  if (env.mihomoMode === 'external') {
+    agentSingleton = createExternalNodeAgent({
+      providerPath: join(env.mihomoHome, 'proxy_providers', 'manual.txt'),
+      sharedGroupRead: env.manualProviderSharedGroup,
+      mihomoApiUrl: env.mihomoApiUrl,
+      mihomoSecret: env.clashSecret,
+      controlToken: env.controlToken,
+    })
+    return agentSingleton
+  }
+  return getManagedAgent()
+}
+
+export function getManagedAgent(): ReturnType<typeof createAgent> {
+  if (agentSingleton && 'supervisor' in agentSingleton) return agentSingleton
   const env = serverEnv()
   agentSingleton = createAgent({
     binaryPath: env.mihomoBin,

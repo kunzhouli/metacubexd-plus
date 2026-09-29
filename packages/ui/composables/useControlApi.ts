@@ -17,6 +17,11 @@ import type {
 } from '~/types/control'
 // packages/ui/composables/useControlApi.ts
 import ky from 'ky'
+import type {
+  ManagedNode,
+  NodePreviewItem,
+  NodeSystemStatus,
+} from '~/types/nodes'
 
 // Profile validation can trigger Mihomo's first-run GEO database download.
 // Keep ordinary control requests on the client's 15s default. These finite
@@ -77,6 +82,39 @@ export function useControlApi() {
     base,
     token,
     getInfo: () => client.get('info').json<ControlInfo>(),
+    listNodes: () => client.get('nodes').json<ManagedNode[]>(),
+    previewNodes: (text: string) =>
+      client
+        .post('nodes/preview', { json: { text } })
+        .json<{ items: NodePreviewItem[] }>(),
+    importNodes: (uris: string[], tags: string[]) =>
+      client
+        .post('nodes/import', { json: { uris, tags } })
+        .json<{ imported: ManagedNode[]; duplicateCount: number }>(),
+    getNodeUri: (id: string) =>
+      client.get(`nodes/${encodeURIComponent(id)}/uri`).json<{ uri: string }>(),
+    updateNode: (
+      id: string,
+      body: { uri?: string; name?: string; tags?: string[]; revision?: number },
+    ) =>
+      client
+        .put(`nodes/${encodeURIComponent(id)}`, { json: body })
+        .json<ManagedNode>(),
+    deleteNode: async (id: string) => {
+      await client.delete(`nodes/${encodeURIComponent(id)}`)
+    },
+    testNode: (id: string) =>
+      client
+        .post('nodes/test', { json: { id }, timeout: 40_000 })
+        .json<{ delay: number }>(),
+    reloadManualProvider: () =>
+      client
+        .post('providers/manual/reload')
+        .json<{ ok: boolean; count: number }>(),
+    healthcheckManualProvider: () =>
+      client.post('providers/manual/healthcheck').json<{ ok: boolean }>(),
+    getNodeSystemStatus: () =>
+      client.get('system/status').json<NodeSystemStatus>(),
     getKernelStatus: () => client.get('kernel/status').json<KernelState>(),
     startKernel: () => client.post('kernel/start').json<KernelState>(),
     stopKernel: () => client.post('kernel/stop').json<KernelState>(),

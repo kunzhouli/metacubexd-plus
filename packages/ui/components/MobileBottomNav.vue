@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import type {MobileNavReselectDetail} from '~/constants';
+import type { MobileNavReselectDetail } from '~/constants'
 import {
   IconChartAreaLine,
   IconFileStack,
@@ -12,15 +12,11 @@ import {
   IconSettings,
   IconX,
 } from '@tabler/icons-vue'
-import {
-  MOBILE_NAV_RESELECT_EVENT,
-  
-  ROUTES
-} from '~/constants'
+import { MOBILE_NAV_RESELECT_EVENT, ROUTES } from '~/constants'
 
 const { t } = useI18n()
 const route = useRoute()
-const { hasAgent } = useControlInfo()
+const { hasFeature } = useControlInfo()
 
 // Primary 4 nav items (around the FAB)
 const primaryItems = computed(() => [
@@ -40,10 +36,17 @@ const secondaryItems = computed(() => {
     { href: '/logs', name: t('logs'), icon: IconFileStack },
     { href: '/config', name: t('config'), icon: IconSettings },
   ]
+  if (hasFeature('nodes')) {
+    items.push({ href: '/nodes', name: t('manualNodes'), icon: IconGlobe })
+  }
   // Desktop/server only: keep the Control Center reachable on narrow viewports
   // (e.g. a phone hitting the server-mode dashboard). Hidden in the plain web
   // dashboard, mirroring the desktop Sidebar gate.
-  if (hasAgent.value) {
+  if (
+    hasFeature('kernel-control') ||
+    hasFeature('system-proxy') ||
+    hasFeature('config-sections')
+  ) {
     items.push({
       href: '/control',
       name: t('controlCenter'),

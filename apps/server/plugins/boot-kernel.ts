@@ -1,5 +1,5 @@
 import { defineNitroPlugin } from 'nitropack/runtime'
-import { getAgent } from '../lib/supervisor'
+import { getManagedAgent, serverEnv } from '../lib/supervisor'
 
 // All-in-One server: Nitro is otherwise lazy — the agent only acts on
 // /api/control requests — so without this the bundled mihomo never spawns and
@@ -13,7 +13,8 @@ import { getAgent } from '../lib/supervisor'
 // active config (external-controller/secret/mixed-port) and mihomo runs on its
 // defaults — enough for the dashboard to connect; importing a profile restarts it.
 export default defineNitroPlugin(() => {
-  const { supervisor, scheduler } = getAgent()
+  if (serverEnv().mihomoMode === 'external') return
+  const { supervisor, scheduler } = getManagedAgent()
   console.log('[kernel] starting bundled mihomo on boot…')
   supervisor
     .start()

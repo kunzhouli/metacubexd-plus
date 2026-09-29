@@ -54,6 +54,8 @@ export { buildTunConfig, TunPreconditionError } from './tun'
 export * from './types'
 export { createWebdavClient } from './webdav'
 export type { WebdavClient, WebdavClientOptions } from './webdav'
+export { createExternalNodeAgent } from './nodes/http'
+export type { ExternalNodeAgentOptions } from './nodes/http'
 
 export type CreateAgentOptions = CreateSupervisorOptions & {
   profilesDir: string
