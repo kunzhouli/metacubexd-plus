@@ -19,6 +19,7 @@ When real nodes exist, the file contains only their URI lines. The node-manageme
 Add this to the active Mihomo config once:
 
 ```yaml
+external-controller: 0.0.0.0:9090
 proxy-providers:
   manual:
     type: file
@@ -31,31 +32,33 @@ proxy-providers:
 
 Add `manual` to the intended proxy groups' `use` list. Apply this initial configuration with your normal Mihomo configuration reload. Confirm `GET /providers/proxies/manual` succeeds before importing nodes.
 
-If the dashboard server uses a different HTTP origin from Mihomo's controller, add that exact origin to Mihomo's `external-controller-cors.allow-origins`. For this VM, the current controller listens on port 80 and the proposed dashboard origin is `http://192.168.100.12:8080`:
+Changing the controller listen port can require one Mihomo service restart. Routine node edits only refresh the Provider and do not restart Mihomo.
+
+If the dashboard server uses a different HTTP origin from Mihomo's controller, add that exact origin to Mihomo's `external-controller-cors.allow-origins`. On this VM, the controller listens on port 9090 and the dashboard origin is `http://192.168.100.12`:
 
 ```yaml
 external-controller-cors:
   allow-origins:
-    - http://192.168.100.12:8080
+    - http://192.168.100.12
   allow-private-network: true
 ```
 
 ## Run the dashboard server
 
-Build the UI and server with `pnpm build:ui` and `pnpm build:server`. Run `apps/server/.output/server/index.mjs` as the Mihomo service user with these settings:
+Build the UI and server with `pnpm build:ui` and `pnpm build:server`. Run `apps/server/.output/server/index.mjs` as the dedicated `metacubexd` service user with these settings:
 
 ```ini
 Environment=MIHOMO_MODE=external
 Environment=MIHOMO_HOME=/etc/mihomo
-Environment=MIHOMO_API_URL=http://127.0.0.1:80
+Environment=MIHOMO_API_URL=http://127.0.0.1:9090
 Environment=MANUAL_PROVIDER_SHARED_GROUP=1
 Environment=HOST=192.168.100.12
-Environment=PORT=8080
+Environment=PORT=80
 Environment=CONTROL_TOKEN=<long-random-secret>
 Environment=CLASH_SECRET=<existing-mihomo-api-secret>
-Environment=DEFAULT_BACKEND_URL=http://192.168.100.12:80
+Environment=DEFAULT_BACKEND_URL=http://192.168.100.12:9090
 ```
 
-Place secrets in a root-owned systemd environment file with mode `0600`, referenced by `EnvironmentFile=`, rather than in a world-readable unit file. The UI and Control API are intended for a trusted LAN; restrict port 8080 to trusted clients, preferably behind an authenticated reverse proxy. Do not publish port 8080 to the internet. The server's `/config.js` exposes the Control token to anyone who can load the UI, so protect the entire UI origin. The existing dashboard endpoint store also persists the Clash API secret in browser local storage; use a dedicated browser profile on a trusted device.
+Place secrets in a root-owned systemd environment file with mode `0600`, referenced by `EnvironmentFile=`, rather than in a world-readable unit file. The non-root service needs `AmbientCapabilities=CAP_NET_BIND_SERVICE` and `CapabilityBoundingSet=CAP_NET_BIND_SERVICE` to listen on port 80. The UI and Control API are intended for a trusted LAN; restrict port 80 to trusted clients, preferably behind an authenticated reverse proxy. Do not publish the UI to the internet. The server's `/config.js` exposes the Control token to anyone who can load the UI, so protect the entire UI origin. The existing dashboard endpoint store also persists the Clash API secret in browser local storage; use a dedicated browser profile on a trusted device.
 
-The node page appears only when `MIHOMO_MODE=external`. `GET /api/control/system/status` reports whether Mihomo and the `manual` Provider are ready. Ordinary node edits write `manual.txt` and call Mihomo's Provider reload API; they do not restart the systemd service.
+The node page appears only when `MIHOMO_MODE=external`. The node-management API stays on the Dashboard origin at `/api/control`; Mihomo's own API uses port 9090. `GET /api/control/system/status` reports whether Mihomo and the `manual` Provider are ready. Ordinary node edits write `manual.txt` and call Mihomo's Provider reload API; they do not restart the systemd service.
